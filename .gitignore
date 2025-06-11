@@ -1,9 +1,61 @@
+# Virtual Environment
 env/
-*.pyc
+venv/
+.env
+.venv
+
+# Python
+*.py[cod]
 __pycache__/
-*.pyo
-*.pyd
-*.db
-*.sqlite    
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+bin/
+var/
+sdist/
+develop-eggs/
+.installed.cfg
+lib/
+lib64/
+.Python
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Logs and databases
 *.log
+*.sqlite
+*.db
+*.pid
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.pytest_cache/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Project specific
+instance/
+.webassets-cache/
+*.pyc
+celerybeat-schedule
+celerybeat.pid
 
