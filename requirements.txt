@@ -1,0 +1,38 @@
+# Bot Framework
+aiogram
+aiohttp
+
+# Database
+sqlalchemy
+alembic
+psycopg2-binary
+redis
+
+# Task Queue
+celery
+flower
+
+# API Framework
+fastapi
+uvicorn
+pydantic
+
+# AI Integration
+openai
+google-generativeai
+
+# Integrations
+google-api-python-client
+notion-client
+PyGithub
+requests
+
+# Monitoring & Logging
+prometheus-client
+structlog
+
+# Testing
+pytest
+pytest-asyncio
+pytest-cov
+factory-boy
