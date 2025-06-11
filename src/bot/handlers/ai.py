@@ -7,13 +7,17 @@ import openai
 from typing import Optional
 
 from src.core.config import settings
+from src.core.services.ai.deepseek_client_new import DeepseekClient
 from src.bot.utils.keyboards import back_keyboard
 
 router = Router()
 logger = structlog.get_logger()
 
-# Configure OpenAI if available
-if settings.openai_api_key:
+# Initialize AI clients based on configuration
+ai_client = None
+if settings.ai_provider == "deepseek" and settings.deepseek_api_key:
+    ai_client = DeepseekClient()
+elif settings.ai_provider == "openai" and settings.openai_api_key:
     openai.api_key = settings.openai_api_key
 
 class AIStates(StatesGroup):
@@ -87,48 +91,116 @@ async def process_ai_chat(message: types.Message, state: FSMContext):
         )
         await state.clear()
         return
+
+    # Log la requête
+    logger.info(
+        "Processing chat message",
+        message=message.text,
+        user_id=message.from_user.id,
+        provider=settings.ai_provider
+    )
     
     # Show typing indicator
     await message.bot.send_chat_action(message.chat.id, "typing")
     
     try:
-        if settings.openai_api_key:
-            # Use OpenAI API
+        if ai_client or settings.openai_api_key:
+            # Use configured AI provider
             response = await get_ai_response(message.text)
+            await message.answer(f"🤖 {response}", parse_mode="Markdown")
         else:
             # Fallback response
             response = get_fallback_ai_response(message.text)
-        
-        await message.answer(f"🤖 {response}", parse_mode="Markdown")
+            await message.answer(
+                "ℹ️ *Mode IA simple activé*\n"
+                "Pour des réponses plus intelligentes, configurez un fournisseur d'IA.\n\n"
+                f"🤖 {response}",
+                parse_mode="Markdown"
+            )
+            
+    except ValueError as ve:
+        # Erreur de configuration
+        logger.warning(
+            "AI configuration error",
+            error=str(ve),
+            user_id=message.from_user.id
+        )
+        await message.answer(
+            f"⚠️ *Erreur de configuration*\n\n{str(ve)}\n\n"
+            "Contactez l'administrateur pour résoudre ce problème.",
+            parse_mode="Markdown"
+        )
         
     except Exception as e:
-        logger.error("AI chat error", error=str(e))
+        # Erreur technique
+        logger.error(
+            "AI chat error",
+            error=str(e),
+            error_type=type(e).__name__,
+            user_id=message.from_user.id
+        )
         await message.answer(
-            "❌ Désolé, je rencontre un problème technique.\n"
-            "Essayez de reformuler votre question."
+            "❌ *Erreur technique*\n\n"
+            "Une erreur s'est produite lors de la génération de la réponse.\n"
+            "L'équipe technique a été notifiée.\n\n"
+            "En attendant, vous pouvez :\n"
+            "• Réessayer avec une formulation différente\n"
+            "• Utiliser les commandes de base du bot\n"
+            "• Contacter le support avec /help",
+            parse_mode="Markdown"
         )
 
 async def get_ai_response(user_message: str) -> str:
-    """Get response from OpenAI API"""
+    """Get response from configured AI provider"""
+    messages = [
+        {
+            "role": "system", 
+            "content": "Tu es Linklet, un assistant IA spécialisé dans l'automatisation et les workflows. "
+                      "Réponds de manière concise et utile en français. "
+                      "Tu peux aider avec l'automatisation, les intégrations d'APIs, et les conseils techniques."
+        },
+        {"role": "user", "content": user_message}
+    ]
+
     try:
-        response = await openai.ChatCompletion.acreate(
-            model="gpt-3.5-turbo",
-            messages=[
-                {
-                    "role": "system", 
-                    "content": "Tu es Linklet, un assistant IA spécialisé dans l'automatisation et les workflows. "
-                              "Réponds de manière concise et utile en français. "
-                              "Tu peux aider avec l'automatisation, les intégrations d'APIs, et les conseils techniques."
-                },
-                {"role": "user", "content": user_message}
-            ],
-            max_tokens=500,
-            temperature=0.7
-        )
-        return response.choices[0].message.content.strip()
+        if settings.ai_provider == "deepseek":
+            if not ai_client:
+                raise ValueError("Client Deepseek non configuré. Vérifiez votre clé API.")
+            return await ai_client.generate_chat_response(
+                messages=messages,
+                max_tokens=500,
+                temperature=0.7,
+                model="deepseek-chat"
+            )
+            
+        elif settings.ai_provider == "openai":
+            if not settings.openai_api_key:
+                raise ValueError("Clé API OpenAI non configurée.")
+            response = await openai.ChatCompletion.acreate(
+                model="gpt-3.5-turbo",
+                messages=messages,
+                max_tokens=500,
+                temperature=0.7
+            )
+            return response.choices[0].message.content.strip()
+            
+        else:
+            raise ValueError(f"Fournisseur d'IA '{settings.ai_provider}' non supporté. "
+                           "Options valides : 'deepseek' ou 'openai'")
+            
+    except ValueError as ve:
+        # Erreurs de configuration
+        logger.error(f"Configuration error: {str(ve)}", 
+                    provider=settings.ai_provider)
+        raise ValueError(str(ve))
+        
     except Exception as e:
-        logger.error("OpenAI API error", error=str(e))
-        raise
+        # Erreurs d'API ou autres
+        logger.error(f"AI provider error", 
+                    provider=settings.ai_provider,
+                    error=str(e),
+                    error_type=type(e).__name__)
+        raise RuntimeError(f"Erreur lors de la génération de la réponse : {str(e)}")
 
 def get_fallback_ai_response(user_message: str) -> str:
     """Fallback response when AI is not available"""

@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     
     # AI Services
     openai_api_key: Optional[str] = Field(None, env="OPENAI_API_KEY")
+    deepseek_api_key: Optional[str] = Field(None, env="DEEPSEEK_API_KEY")
+    ai_provider: str = Field(default="openai", env="AI_PROVIDER")  # openai, deepseek, or gemini
     
     # n8n Integration
     n8n_base_url: Optional[str] = Field(None, env="N8N_BASE_URL")
